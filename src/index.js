@@ -1,8 +1,8 @@
 import configureStore from "./store/configureStore";
-import {  bugAdded, bugResolved, bugRemoved, getUnresolvedBugs, bugAssignedToUser, getBugsByUser } from './store/bugs';
+import { bugAdded, bugResolved, bugRemoved, getUnresolvedBugs, bugAssignedToUser, getBugsByUser, loadBugs, addBug, resolveBug, assignBugToUser } from './store/bugs';
 import { projectAdded } from "./store/projects";
 import { userAdded } from "./store/users";
-
+import * as actions from './store/api';
 const store = configureStore();
 
 const unsubscribe = store.subscribe(() => {
@@ -18,7 +18,7 @@ store.dispatch(bugAdded({description: "Bug 1"}));
 store.dispatch(bugAdded({description: "Bug 2"}));
 store.dispatch(bugAdded({description: "Bug 3"}));
 
-store.dispatch(bugAssignedToUser({ bugId: 1, userId: 1}));
+store.dispatch(bugAssignedToUser({ id: 1, userId: 1}));
 
 store.dispatch(bugResolved({id : 1}));
 
@@ -37,7 +37,7 @@ store.dispatch((dispatch, getState) => {
     //call an API
     //When the promise is resolved => dispatch()
     //If the promise is rejected => dispatch()
-    dispatch({ type: 'bugsRecieved', bugs: [1,2,3]});
+    dispatch({ type: 'bugsReceived', bugs: [1,2,3]});
     console.log(getState());
 });
 
@@ -45,6 +45,11 @@ store.dispatch({
     type: "error",
     payload: { message: "An error occurred"}
 });
+store.dispatch(loadBugs());
+store.dispatch(addBug({description: "a"}));
+setTimeout(() => store.dispatch(loadBugs()), 2000);
+setTimeout(() => store.dispatch(resolveBug(1)), 2000);
+store.dispatch(assignBugToUser(4, 1));
 // import Store from './customStore';
 
 // import * as actions from './actionCreator';
@@ -52,3 +57,8 @@ store.dispatch({
 //         console.log("Store changed!", Store.getState())
 //     });
 // Store.dispatch(actions.bugAdded("Bug 1"));
+
+
+//call function
+//call the server
+//update the store after calling the server

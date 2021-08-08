@@ -1,6 +1,9 @@
 import { createAction, createReducer, createSlice } from "@reduxjs/toolkit";
 
 import { createSelector } from 'reselect';
+import { apiCallBegan } from "./api";
+
+import moment from 'moment';
 //Action Creators
 
 // export const bugAdded = createAction('bugAdded');
@@ -15,30 +18,51 @@ let lastId = 0;
 
 const slice = createSlice({
     name: "bugs",
-    initialState: [],
+    initialState: {
+        list: [],
+        loading: false,
+        lastFetch: null
+    },
     reducers: {
 
-        bugAssignedToUser: (state, action) => {
-            const { bugId, userId } = action.payload;
-            const index = state.findIndex(bug => bug.id === bugId );
-            state[index].userId = userId;
+        bugsRequested: (state, action) => {
+            state.loading = true;
         },
 
-         bugAdded: (state, action) => {
-             state.push({
+        bugsRequestedFailed: (state, action) => {
+            state.loading = false;
+        },
+        bugsReceived: (state, action) => {
+            state.list = action.payload;
+            state.loading = false;
+            state.lastFetch = Date.now(); //cant use date object because its not serializable 
+        },
+
+        bugAssignedToUser: (state, action) => {
+            const { id, userId } = action.payload;
+            const index = state.list.findIndex(bug => bug.id === id );
+            state.list[index].userId = userId;
+        },
+
+        bugAdded: (state, action) => {
+             state.list.push({
                 id: ++lastId,
                 description: action.payload.description,
                 resolved: false
              })
          },
-         bugResolved: (state, action) => {
+
+        bugAddedByServer: (state, action) => {
+            state.list.push(action.payload);
+        },
+        bugResolved: (state, action) => {
             {
-                const index = state.findIndex(bug => bug.id === action.payload.id);
-                state[index].resolved = true;
+                const index = state.list.findIndex(bug => bug.id === action.payload.id);
+                state.list[index].resolved = true;
             }
          },
-         bugRemoved: (state, action) => {
-            state.splice(state.findIndex(bug => bug.id === action.payload.id), 1);
+        bugRemoved: (state, action) => {
+            state.list.splice(state.list.findIndex(bug => bug.id === action.payload.id), 1);
         }
 
 
@@ -46,9 +70,50 @@ const slice = createSlice({
 })
 
 
-export const { bugAdded, bugResolved, bugRemoved, bugAssignedToUser } = slice.actions;
+export const { bugAdded, bugResolved, bugRemoved, bugAssignedToUser, bugsReceived, bugsRequested, bugsRequestedFailed, bugAddedByServer } = slice.actions;
 export default slice.reducer;
 
+const url = '/bugs';
+
+export const loadBugs = () => (dispatch, getState) => {
+    const { lastFetch } = getState().entities.bugs;
+
+    const diffInMinutes = moment().diff(moment(lastFetch), 'minutes');
+
+    if (diffInMinutes < 10) return;
+    dispatch(
+        apiCallBegan({
+            url,
+            onStart: bugsRequested.type,
+            onSuccess: bugsReceived.type,
+            onError: bugsRequestedFailed.type //needs to be string because functions are not serializable, action objects should be serializable
+        })
+    )
+};
+
+export const addBug = bug => apiCallBegan({
+    url,
+    method: "post",
+    data: bug,
+    onSuccess: bugAddedByServer.type
+
+});
+
+export const resolveBug = id => apiCallBegan({
+    url: url + '/' + id,
+    method: 'patch',
+    data: { resolved: true },
+    onSuccess: bugResolved.type
+
+});
+
+export const assignBugToUser = (bugId, userId) => 
+    apiCallBegan({
+        url: url + '/' + bugId,
+        method: 'patch',
+        data: { userId }/*,
+        onSuccess: bugAssignedToUser.type*/
+    });
 //selector function
 
 // export const UnresolvedBugsSelector = state => 
@@ -60,12 +125,12 @@ export default slice.reducer;
 export const getUnresolvedBugs = createSelector(
     state => state.entities.bugs,
     state => state.entities.projects,
-    (bugs, project) => bugs.filter(bug => !bug.resolved)
+    (bugs, project) => bugs.list.filter(bug => !bug.resolved)
 )
 
 export const getBugsByUser = userId => createSelector(
     state => state.entities.bugs,
-    bugs => bugs.filter(bug => bug.userId === userId)
+    bugs => bugs.list.filter(bug => bug.userId === userId)
 )
 
 // export default createReducer([], {
